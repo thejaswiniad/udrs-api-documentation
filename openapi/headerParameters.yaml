@@ -1,0 +1,22 @@
+##########
+### REQUEST HEADER PARAMETERS
+##########
+requestId:
+  name: X-Psn-Request-Id
+  in: header
+  description: Unique token used to identify each individual HTTP request. Must be in RFC 4122 UUID format. For example, if a user makes a call to get an access token, then makes a call to get a user's entitlements, each call would have its own unique request ID, although one could consider this as part of a single user session.
+  schema:
+    type: string
+  example: 8600571b-e849-4f38-b256-1360f61754d4
+  x-psn-api-audience:
+    - internal-application
+
+correlationId:
+  name: X-Psn-Correlation-Id
+  in: header
+  description: Used for multiple client calls in a user session. The X-Psn-Request-Id has to be unique for every request, while X-Psn-Correlation-Id should be same for every call in a client session. Must be in RFC 4122 UUID format. The X-Psn-Correlation-Id, although similar to X-Psn-Request-Id, can be used to stitch together a user flow. If a user makes a call to get an access token, then makes a call to get a user's entitlements, each of these calls would have a unique request ID, however, one could use a single X-Psn-Correlation-Id to uniquely identify this user's session. Another use case could be a user's navigation through the PSN store, add to cart, and then purchase which could later be used to understand user behavior.
+  schema:
+    type: string
+  example: 125eafa8-2acb-4865-864a-4145b4b77173
+  x-psn-api-audience:
+    - internal-application
