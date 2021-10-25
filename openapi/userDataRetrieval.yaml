@@ -1,0 +1,515 @@
+openapi: '3.0.1'
+
+info:
+  title: 'User Data Retrieval System API'
+  description: 'The User Data Retrieval System can be used to retrieve all the data of a user'
+  version: '1.0.0'
+  contact:
+    name: Accountables Team
+    email: SIE-Accountables@sony.com
+    url: https://sie.slack.com/messages/CFS057N49
+
+x-psn-api-group: userDataRetrievalSystem
+
+x-psn-error-code-list:
+  $ref: '#/components/x-PSN-Error-Code-List'
+
+
+servers:
+  - url: 'http://user-data-retrieval-system.{app:deploymentEnvironment}-eib.navcloud.sonynei.net'
+    description: 'Non-production server'
+    variables:
+      'app:deploymentEnvironment':
+        enum:
+          - 'd1-np'
+          - 'q1-np'
+          - 'e1-np'
+        default: 'd1-np'
+
+components:
+  x-PSN-Error-Code-List:
+    codes:
+      '100081':
+        macro_name: 'ACCOUNTS_SCHEMA_REQUEST_VALIDATION_ERROR'
+        open_level: public
+        message: "Bad request (invalid parameter provided)"
+        status_code: 400
+        error_description:
+          'en': "Invalid attributes provided in the request body"
+        cs_deal:
+          'en': "Provided parameters must meet the specified schema requirements"
+
+  securityDefinitions:
+    oauth:
+      type: apiKey
+      name: Unused
+      in: header
+      x-amazon-apigateway-authtype: oauth2
+      x-amazon-apigateway-authorizer:
+        type: request
+        authorizerUri: arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/${authorizerFunction.Arn}/invocations
+        authorizerResultTtlInSeconds: 0
+        identitySource: method.request.header.Authorization, method.request.pathParameters.account_id
+
+  parameters:
+    account_id:
+      name: account_id
+      in: path
+      required: true
+      x-psn-type-account-id: true
+      description: Account Identifier
+      schema:
+        type: string
+        minLength: 2
+        maxLength: 19
+        pattern: '^[0-9]{2,19}$'
+      example: '7262365983298540780'
+
+  schemas:
+    status:
+      properties:
+        statusType:
+          description: status of the user request
+          type: string
+          enum:
+            - ELIGIBLE
+            - NOT_ELIGIBLE
+        reason:
+          description: reason for not being eligible
+          type: string
+          enum:
+            - IN_PROGRESS
+            - COOL_DOWN
+            - OTHER
+      required:
+        - statusType
+
+    report:
+      properties:
+        url:
+          description: link to user's data report
+          type: string
+      required:
+        - url
+
+    validationConstraintInfo:
+      required:
+        - key
+        - value
+      properties:
+        key:
+          description: A string key that qualifies data represented by the value.
+          type: string
+        value:
+          description: Limit imposed by validation constraint, allowed/legal values or regex pattern.
+          type: string
+
+    missingElement:
+      properties:
+        name:
+          description: Name of the missing element.
+          type: string
+          maxLength: 256
+          minLength: 1
+
+    psnWebError:
+      required:
+        - code
+      properties:
+        referenceId:
+          description: Request ID.
+          type: string
+          example: 8600571b-e849-4f38-b256-1360f61754d4
+        code:
+          description: Numeric error code.
+          type: integer
+          minimum: 0
+          maximum: 12582911
+        reason:
+          description: Human-readable error category.
+          type: string
+        message:
+          description: English error message for debugging (up to 128 ASCII characters).  Since this message is meant for developers, do not use this for error handling or display this for users.
+          type: string
+          maxLength: 128
+        source:
+          description: Source service of the error.
+          type: string
+
+    psnWebErrorWrapper:
+      x-psn-type-error-object: true
+      required:
+        - error
+      properties:
+        error:
+          description: Object containing error information.
+          $ref: '#/components/schemas/psnWebError'
+
+  responses:
+    unauthorized:
+      description: >
+        **Unauthorized. Possible error codes:**
+
+         * 1048840: Token is expired.
+         * 1048841: Token is invalid.
+         * 1048843: No access token provided.
+         * 1052679: Not authorized to access account (requestor does not match owner of token)
+      headers:
+        Cache-Control:
+          $ref: './responseHeaders.yaml#/cacheControl'
+        X-Content-Type-Options:
+          $ref: './responseHeaders.yaml#/contentTypeOptions'
+        X-Psn-Request-Id:
+          $ref: './responseHeaders.yaml#/requestId'
+        X-Psn-Correlation-Id:
+          $ref: './responseHeaders.yaml#/correlationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/psnWebErrorWrapper'
+          example:
+            error:
+              referenceId: 8600571b-e849-4f38-b256-1360f61754d4
+              code: 1048841
+              message: Token is invalid
+    forbiddenOrCors:
+      description: >
+        **Forbidden. Possible error codes:**
+
+         * Invalid CORS request
+         * 1048842: Invalid scopes
+      headers:
+        Cache-Control:
+          $ref: './responseHeaders.yaml#/cacheControl'
+        X-Content-Type-Options:
+          $ref: './responseHeaders.yaml#/contentTypeOptions'
+        X-Psn-Request-Id:
+          $ref: './responseHeaders.yaml#/requestId'
+        X-Psn-Correlation-Id:
+          $ref: './responseHeaders.yaml#/correlationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/psnWebErrorWrapper'
+          example:
+            error:
+              referenceId: '8600571b-e849-4f38-b256-1360f61754d4'
+              code: 1048842
+              message: access token does not contain the required scope(s)
+    internalServer:
+      description: The server encountered an unexpected condition that prevented the request being fulfilled.
+      headers:
+        Cache-Control:
+          $ref: './responseHeaders.yaml#/cacheControl'
+        X-Content-Type-Options:
+          $ref: './responseHeaders.yaml#/contentTypeOptions'
+        X-Psn-Request-Id:
+          $ref: './responseHeaders.yaml#/requestId'
+        X-Psn-Correlation-Id:
+          $ref: './responseHeaders.yaml#/correlationId'
+    badGateway:
+      description: A call to a downstream service has failed.
+      headers:
+        Cache-Control:
+          $ref: './responseHeaders.yaml#/cacheControl'
+        X-Content-Type-Options:
+          $ref: './responseHeaders.yaml#/contentTypeOptions'
+        X-Psn-Request-Id:
+          $ref: './responseHeaders.yaml#/requestId'
+        X-Psn-Correlation-Id:
+          $ref: './responseHeaders.yaml#/correlationId'
+    downstreamTimeout:
+      description: A call to a downstream service has timed out.
+      headers:
+        Cache-Control:
+          $ref: './responseHeaders.yaml#/cacheControl'
+        X-Content-Type-Options:
+          $ref: './responseHeaders.yaml#/contentTypeOptions'
+        X-Psn-Request-Id:
+          $ref: './responseHeaders.yaml#/requestId'
+        X-Psn-Correlation-Id:
+          $ref: './responseHeaders.yaml#/correlationId'
+    badRequestParam:
+      description: >
+        **Bad Request Error. Possible error codes:**
+
+         * 1048706: Request parameter validation error.
+      headers:
+        Cache-Control:
+          $ref: './definitions/responseHeaders.yaml#/cacheControl'
+        X-Content-Type-Options:
+          $ref: './definitions/responseHeaders.yaml#/contentTypeOptions'
+        X-Psn-Request-Id:
+          $ref: './definitions/responseHeaders.yaml#/requestId'
+        X-Psn-Correlation-Id:
+          $ref: './definitions/responseHeaders.yaml#/correlationId'
+      content:
+        application/json:
+          schema:
+            $ref: './definitions/errors.yaml#/psnWebErrorWrapper'
+          example:
+            error:
+              referenceId: 8600571b-e849-4f38-b256-1360f61754d4
+              code: 1048706
+              message: Request parameter validation error
+              errors:
+                - path: account_id
+                  validationConstraint: maxLength
+                  validationConstraintInfo:
+                    - key: maxLength
+                      value: 19
+                  message: string is too long
+
+
+paths:
+  /api/userDataRetrieval/v1/users/me/status:
+    summary: An individual user's request status
+    description: An individual user's request status
+    get:
+      x-psn-api-audience:
+        - internal-application
+      summary: Gets the request status for the given account.
+      tags:
+        - User
+      description: Get request status.
+      operationId: getRequestStatus
+      security:
+        - oauth: []
+      parameters:
+        - $ref: './headerParameters.yaml#/correlationId'
+        - $ref: './headerParameters.yaml#/requestId'
+      responses:
+        '200':
+          description: Successful response containing the user's account status information
+          headers:
+            Cache-Control:
+              $ref: './responseHeaders.yaml#/cacheControl'
+            X-Content-Type-Options:
+              $ref: './responseHeaders.yaml#/contentTypeOptions'
+            X-Psn-Request-Id:
+              $ref: './responseHeaders.yaml#/requestId'
+            X-Psn-Correlation-Id:
+              $ref: './responseHeaders.yaml#/correlationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/status'
+              example:
+                statusType: NOT_ELIGIBLE
+                reason: OTHER
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbiddenOrCors'
+        '500':
+          $ref: '#/components/responses/internalServer'
+        '502':
+          $ref: '#/components/responses/badGateway'
+        '504':
+          $ref: '#/components/responses/downstreamTimeout'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/${udrsStatusFunction.Arn}/invocations
+
+  /api/userDataRetrieval/v1/users/me/report:
+    summary: An individual user's data report
+    description: An individual user's data report
+    get:
+      x-psn-api-audience:
+        - internal-application
+      summary: Gets the data report for the given account.
+      tags:
+        - User
+      description: Get data report.
+      operationId: getDataReport
+      security:
+        - oauth: []
+      parameters:
+        - $ref: './headerParameters.yaml#/correlationId'
+        - $ref: './headerParameters.yaml#/requestId'
+      responses:
+        '200':
+          description: Successful response containing link to the user's account data report
+          headers:
+            Cache-Control:
+              $ref: './responseHeaders.yaml#/cacheControl'
+            X-Content-Type-Options:
+              $ref: './responseHeaders.yaml#/contentTypeOptions'
+            X-Psn-Request-Id:
+              $ref: './responseHeaders.yaml#/requestId'
+            X-Psn-Correlation-Id:
+              $ref: './responseHeaders.yaml#/correlationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/report'
+              example:
+                url: https://urltodatareport.com
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbiddenOrCors'
+        '500':
+          $ref: '#/components/responses/internalServer'
+        '502':
+          $ref: '#/components/responses/badGateway'
+        '504':
+          $ref: '#/components/responses/downstreamTimeout'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/${udrsDelivererFunction.Arn}/invocations
+
+  /api/userDataRetrieval/v1/users/me/request:
+    summary: Create account data request
+    description: Create account data request
+    post:
+      x-psn-api-audience:
+        - internal-application
+      summary: Creates the account data request for an individual.
+      tags:
+        - User
+      description: Creates account data request
+      operationId: createDataRequest
+      security:
+        - oauth: []
+      parameters:
+        - $ref: './headerParameters.yaml#/correlationId'
+        - $ref: './headerParameters.yaml#/requestId'
+      responses:
+        '201':
+          description: Successfully created account data request
+          headers:
+            Cache-Control:
+              $ref: './responseHeaders.yaml#/cacheControl'
+            X-Content-Type-Options:
+              $ref: './responseHeaders.yaml#/contentTypeOptions'
+            X-Psn-Request-Id:
+              $ref: './responseHeaders.yaml#/requestId'
+            X-Psn-Correlation-Id:
+              $ref: './responseHeaders.yaml#/correlationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/request'
+              example:
+                request_id: "1234"
+        '400':
+          $ref: '#/components/responses/badRequestParam'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbiddenOrCors'
+        '500':
+          $ref: '#/components/responses/internalServer'
+        '502':
+          $ref: '#/components/responses/badGateway'
+        '504':
+          $ref: '#/components/responses/downstreamTimeout'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/${udrsCreatorFunction.Arn}/invocations
+
+  /api/userDataRetrieval/v1/users/{account_id}/request:
+    summary: An individual user's data request
+    description: An individual user's data request
+    parameters:
+      - $ref: '#/components/parameters/account_id'
+    post:
+      x-psn-api-audience:
+        - internal-application
+      summary: Initiate data request for an account.
+      tags:
+        - S2S
+      description: Create the data request.
+      operationId: createDataRequestS2s
+      security:
+        - oauth: []
+      parameters:
+        - $ref: './headerParameters.yaml#/correlationId'
+        - $ref: './headerParameters.yaml#/requestId'
+      responses:
+        '201':
+          description: Successful response on request to initiate data retrieval for an account
+          headers:
+            Cache-Control:
+              $ref: './responseHeaders.yaml#/cacheControl'
+            X-Content-Type-Options:
+              $ref: './responseHeaders.yaml#/contentTypeOptions'
+            X-Psn-Request-Id:
+              $ref: './responseHeaders.yaml#/requestId'
+            X-Psn-Correlation-Id:
+              $ref: './responseHeaders.yaml#/correlationId'
+        '400':
+          $ref: '#/components/responses/badRequestParam'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbiddenOrCors'
+        '500':
+          $ref: '#/components/responses/internalServer'
+        '502':
+          $ref: '#/components/responses/badGateway'
+        '504':
+          $ref: '#/components/responses/downstreamTimeout'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/${udrsCreatorFunction.Arn}/invocations
+
+  /api/userDataRetrieval/v1/users/{account_id}/status:
+    summary: An individual user's request status
+    description: An individual user's request status
+    get:
+      x-psn-api-audience:
+        - internal-application
+      summary: Gets the request status for the given account.
+      tags:
+        - S2S
+      description: Get request status.
+      operationId: getRequestStatusS2s
+      security:
+        - oauth: []
+      parameters:
+        - $ref: './headerParameters.yaml#/correlationId'
+        - $ref: './headerParameters.yaml#/requestId'
+      responses:
+        '200':
+          description: Successful response containing the user's account status information
+          headers:
+            Cache-Control:
+              $ref: './responseHeaders.yaml#/cacheControl'
+            X-Content-Type-Options:
+              $ref: './responseHeaders.yaml#/contentTypeOptions'
+            X-Psn-Request-Id:
+              $ref: './responseHeaders.yaml#/requestId'
+            X-Psn-Correlation-Id:
+              $ref: './responseHeaders.yaml#/correlationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/status'
+              example:
+                statusType: NOT_ELIGIBLE
+                reason: OTHER
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbiddenOrCors'
+        '500':
+          $ref: '#/components/responses/internalServer'
+        '502':
+          $ref: '#/components/responses/badGateway'
+        '504':
+          $ref: '#/components/responses/downstreamTimeout'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/${udrsStatusFunction.Arn}/invocations
