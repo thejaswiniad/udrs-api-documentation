@@ -1,0 +1,30 @@
+##########
+### RESPONSE HEADER PARAMETERS
+##########
+requestId:
+  description: Unique identifier for each individual HTTP request.
+  schema:
+    type: string
+  example: 8600571b-e849-4f38-b256-1360f61754d4
+  x-psn-api-audience:
+    - internal-application
+
+correlationId:
+  description: Unique identifier for each user flow (to correlate over multiple individual requests).
+  schema:
+    type: string
+  example: 125eafa8-2acb-4865-864a-4145b4b77173
+  x-psn-api-audience:
+    - internal-application
+
+cacheControl:
+  description: The Cache-Control general-header field.
+  schema:
+    type: string
+  example: private, max-age=0, no-store
+
+contentTypeOptions:
+  description: The X-Content-Type-Options header field (used to indicate that the MIME types advertised in Content-Type should not be changed and be followed).
+  schema:
+    type: string
+  example: nosniff
